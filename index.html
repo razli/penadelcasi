@@ -107,16 +107,18 @@
 
     let total = 0;
     grupoData.miembros.forEach((m, index) => {
-      total += m.saldo ?? 0;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="border px-2 py-1">${m.nombre}</td>
-        <td class="border px-2 py-1">${(m.saldo ?? 0).toFixed(2)}</td>
-        <td class="border px-2 py-1 admin-only ${isAdmin ? '' : 'hidden'}">
-          <button class="bg-red-500 text-white px-2 rounded" onclick="deleteMember(${index})">X</button>
-        </td>`;
-      miembrosTable.appendChild(tr);
-    });
+  total += m.saldo ?? 0;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="border px-2 py-1">${m.nombre}</td>
+    <td class="border px-2 py-1">${(m.saldo ?? 0).toFixed(2)}</td>
+    <td class="border px-2 py-1 admin-only ${isAdmin ? '' : 'hidden'}">
+      <button class="bg-yellow-500 text-white px-2 rounded mr-1" onclick="editSaldo(${index})">✏️</button>
+      <button class="bg-red-500 text-white px-2 rounded" onclick="deleteMember(${index})">X</button>
+    </td>`;
+  miembrosTable.appendChild(tr);
+});
+
 
     saldoTotalEl.textContent = total.toFixed(2) + '€';
     premioTotalEl.textContent = grupoData.premio.toFixed(2) + '€';
@@ -167,6 +169,23 @@
       historial: [...grupoData.historial]
     });
   });
+
+  window.editSaldo = async (index) => {
+  const miembro = grupoData.miembros[index];
+  if (!miembro) return;
+  const nuevoSaldo = parseFloat(prompt(`Nuevo saldo para ${miembro.nombre} (€):`, miembro.saldo));
+  if (isNaN(nuevoSaldo)) return;
+
+  const antiguoSaldo = miembro.saldo ?? 0;
+  grupoData.miembros[index].saldo = nuevoSaldo;
+  grupoData.historial = [`${new Date().toLocaleString()} - Saldo ${miembro.nombre}: ${antiguoSaldo}€ → ${nuevoSaldo}€`, ...grupoData.historial];
+
+  await updateDoc(docRef, {
+    miembros: [...grupoData.miembros],
+    historial: [...grupoData.historial]
+  });
+
+  };
 
   // Eliminar miembro
   window.deleteMember = async (index) => {
