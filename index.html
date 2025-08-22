@@ -8,17 +8,16 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center p-4">
 
-<!-- CONTENEDOR PRINCIPAL -->
-<div class="w-full max-w-4xl bg-white shadow-xl rounded-2xl p-6">
+<div class="w-full max-w-5xl bg-white shadow-xl rounded-2xl p-6">
   <h1 class="text-3xl font-bold text-center mb-4 text-blue-600">💰 Lotería del Grupo</h1>
 
-  <!-- BOTONES ADMIN -->
+  <!-- Botones admin -->
   <div class="flex justify-end mb-4 space-x-2">
     <button id="adminBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">Entrar como Admin</button>
     <button id="logoutBtn" class="hidden bg-gray-500 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">Salir</button>
   </div>
 
-  <!-- INFORMACIÓN -->
+  <!-- Info resumen -->
   <div class="grid grid-cols-2 gap-4 mb-6 text-center">
     <div class="bg-blue-50 rounded-xl p-4">
       <p class="text-gray-500">Saldo Total</p>
@@ -32,7 +31,7 @@
 
   <p class="text-center text-gray-600 mb-4">Semana actual: <span id="fechaSemana" class="font-semibold"></span></p>
 
-  <!-- TABLA -->
+  <!-- Tabla miembros -->
   <div class="overflow-x-auto mb-4">
     <table class="w-full border rounded-xl overflow-hidden">
       <thead>
@@ -46,26 +45,23 @@
     </table>
   </div>
 
-  <!-- BOTONES ADMIN -->
+  <!-- Botones admin -->
   <div class="flex justify-between mb-4 admin-only hidden">
     <button id="addMemberBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">Añadir Miembro</button>
     <button id="playWeekBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg">Jugar Semana</button>
     <button id="editPrizeBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg">Editar Premio</button>
   </div>
 
-  <!-- HISTORIAL -->
+  <!-- Historial -->
   <h2 class="text-xl font-bold mb-2">📜 Historial</h2>
-  <div id="historial" class="border rounded-lg p-3 h-40 overflow-y-scroll bg-gray-50 mb-3"></div>
+  <div id="historial" class="border rounded-lg p-3 h-48 overflow-y-scroll bg-gray-50 mb-3"></div>
   <button id="downloadCSV" class="w-full bg-gray-600 hover:bg-gray-800 text-white px-4 py-2 rounded-lg">Descargar CSV</button>
 </div>
 
-<!-- Firebase SDK y App -->
 <script type="module">
-  // ✅ Importar Firebase Modular
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js";
   import { getFirestore, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js";
 
-  // ✅ Configuración Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyDXejcJRXVXy4sJhnMKTIPaBhDHAWVUVkc",
     authDomain: "penadelcasi.firebaseapp.com",
@@ -78,8 +74,8 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const docRef = doc(db, 'loteria', 'grupo');
 
-  // ✅ Elementos del DOM
   const adminBtn = document.getElementById('adminBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const miembrosTable = document.getElementById('miembrosTable');
@@ -94,7 +90,6 @@
 
   let isAdmin = false;
   let grupoData = {};
-  const docRef = doc(db, 'loteria', 'grupo');
 
   function toggleAdminUI() {
     document.querySelectorAll('.admin-only').forEach(el => {
@@ -106,6 +101,9 @@
 
   function renderUI() {
     miembrosTable.innerHTML = '';
+    grupoData.miembros = grupoData.miembros || [];
+    grupoData.historial = grupoData.historial || [];
+
     let total = 0;
     grupoData.miembros.forEach((m, index) => {
       total += m.saldo;
@@ -115,17 +113,17 @@
         <td class="border px-2 py-1">${m.saldo.toFixed(2)}</td>
         <td class="border px-2 py-1 admin-only ${isAdmin ? '' : 'hidden'}">
           <button class="bg-red-500 text-white px-2 rounded" onclick="deleteMember(${index})">X</button>
-        </td>
-      `;
+        </td>`;
       miembrosTable.appendChild(tr);
     });
+
     saldoTotalEl.textContent = total.toFixed(2) + '€';
-    premioTotalEl.textContent = grupoData.premio.toFixed(2) + '€';
+    premioTotalEl.textContent = (grupoData.premio || 0).toFixed(2) + '€';
     fechaSemanaEl.textContent = new Date().toLocaleDateString('es-ES');
     historialDiv.innerHTML = grupoData.historial.slice().reverse().map(h => `<p>${h}</p>`).join('');
   }
 
-  // ✅ Escuchar cambios en Firestore
+  // Escuchar Firestore
   onSnapshot(docRef, (snap) => {
     if (snap.exists()) {
       grupoData = snap.data();
@@ -133,7 +131,7 @@
     }
   });
 
-  // ✅ Funciones Admin
+  // Admin login/logout
   adminBtn.addEventListener('click', async () => {
     const pass = prompt('Introduce la clave de admin:');
     if (!pass) return;
@@ -152,46 +150,40 @@
   });
 
   // Añadir miembro
-addMemberBtn.addEventListener('click', async () => {
-  const nombre = prompt('Nombre del miembro:');
-  const saldo = parseFloat(prompt('Saldo inicial (€):'));
-  if (!nombre || isNaN(saldo)) return;
-
-  grupoData.miembros = [...grupoData.miembros, { nombre, saldo }];
-  grupoData.historial = [
-    `${new Date().toLocaleString()} - Añadido: ${nombre} (${saldo}€)`,
-    ...grupoData.historial
-  ];
-
-  await updateDoc(docRef, {
-    miembros: grupoData.miembros,
-    historial: grupoData.historial,
+  addMemberBtn.addEventListener('click', async () => {
+    const nombre = prompt('Nombre del miembro:');
+    const saldo = parseFloat(prompt('Saldo inicial (€):'));
+    if (!nombre || isNaN(saldo)) return;
+    grupoData.miembros = [...grupoData.miembros, { nombre, saldo }];
+    grupoData.historial = [`${new Date().toLocaleString()} - Añadido: ${nombre} (${saldo}€)`, ...grupoData.historial];
+    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
   });
-});
 
-  
-
+  // Eliminar miembro
   window.deleteMember = async (index) => {
     const eliminado = grupoData.miembros[index];
-    grupoData.miembros.splice(index, 1);
-    grupoData.historial.push(`${new Date().toLocaleString()} - Eliminado: ${eliminado.nombre}`);
-    await updateDoc(docRef, grupoData);
+    grupoData.miembros = grupoData.miembros.filter((_, i) => i !== index);
+    grupoData.historial = [`${new Date().toLocaleString()} - Eliminado: ${eliminado.nombre}`, ...grupoData.historial];
+    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
   };
 
+  // Jugar semana
   playWeekBtn.addEventListener('click', async () => {
-    grupoData.miembros.forEach(m => m.saldo -= 1);
-    grupoData.historial.push(`${new Date().toLocaleString()} - Semana jugada (-1€ a cada uno)`);
-    await updateDoc(docRef, grupoData);
+    grupoData.miembros = grupoData.miembros.map(m => ({ ...m, saldo: m.saldo - 1 }));
+    grupoData.historial = [`${new Date().toLocaleString()} - Semana jugada (-1€ a cada uno)`, ...grupoData.historial];
+    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
   });
 
+  // Editar premio
   editPrizeBtn.addEventListener('click', async () => {
     const nuevo = parseFloat(prompt('Nuevo premio (€):'));
     if (isNaN(nuevo)) return;
-    grupoData.historial.push(`${new Date().toLocaleString()} - Premio: ${grupoData.premio}€ → ${nuevo}€`);
+    grupoData.historial = [`${new Date().toLocaleString()} - Premio: ${grupoData.premio || 0}€ → ${nuevo}€`, ...grupoData.historial];
     grupoData.premio = nuevo;
-    await updateDoc(docRef, grupoData);
+    await updateDoc(docRef, { premio: grupoData.premio, historial: grupoData.historial });
   });
 
+  // Exportar CSV
   downloadCSVBtn.addEventListener('click', () => {
     const csv = grupoData.historial.map(h => `"${h}"`).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -202,6 +194,7 @@ addMemberBtn.addEventListener('click', async () => {
     a.click();
     URL.revokeObjectURL(url);
   });
+
 </script>
 </body>
 </html>
