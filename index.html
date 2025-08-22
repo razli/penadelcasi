@@ -5,15 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>La peña del casi</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script type="module">
-// ============ FIREBASE CONFIG =============
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
+</head>
+<body class="bg-gray-100 p-6">
 
-// 🔹 Configura con tus credenciales Firebase
-const firebaseConfig = {
-    // 🔹 Configura con tus credenciales Firebase
-const firebaseConfig = {
+<div class="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-6">
+  <h1 class="text-3xl font-bold mb-4 text-center">Lotería del Grupo</h1>
+
+  <div class="flex justify-between mb-4">
+    <button id="adminBtn" class="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded">Entrar como Admin</button>
+    <button id="logoutBtn" class="hidden bg-gray-500 hover:bg-gray-700 text-white px-4 py-2 rounded">Salir Admin</button>
+  </div>
+
+  <div class="mb-4 flex justify-between">
+    <div>
+      <p><strong>Total quemable:</strong> <span id="saldoTotal">0€</span></p>
+      <p><strong>La jubilación</strong> <span id="premioTotal">0€</span></p>
+    </div>
+    <div>
+      <p><strong>Semana Actual:</strong> <span id="fechaSemana"></span></p>
+    </div>
+  </div>
+
+  <table class="w-full table-auto border-collapse mb-4">
+    <thead>
+      <tr class="bg-gray-200">
+        <th class="border px-2 py-1">Nombre</th>
+        <th class="border px-2 py-1">Saldo (€)</th>
+        <th class="border px-2 py-1 admin-only hidden">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="miembrosTable"></tbody>
+  </table>
+
+  <div class="flex justify-between mb-4 admin-only hidden">
+    <button id="addMemberBtn" class="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded">Añadir Miembro</button>
+    <button id="playWeekBtn" class="bg-purple-500 hover:bg-purple-700 text-white px-4 py-2 rounded">Jugar Semana</button>
+    <button id="editPrizeBtn" class="bg-yellow-500 hover:bg-yellow-700 text-white px-4 py-2 rounded">Editar Premio</button>
+  </div>
+
+  <h2 class="text-xl font-bold mb-2">Historial</h2>
+  <div class="border rounded p-2 h-40 overflow-y-scroll bg-gray-50" id="historial"></div>
+  <button id="downloadCSV" class="mt-3 bg-gray-600 hover:bg-gray-800 text-white px-4 py-2 rounded">Descargar CSV</button>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js"></script>
+
+<script>
+  // ✅ Configuración Firebase
+  const firebaseConfig = {
     apiKey: "AIzaSyDXejcJRXVXy4sJhnMKTIPaBhDHAWVUVkc",
     authDomain: "penadelcasi.firebaseapp.com",
     projectId: "penadelcasi",
@@ -21,229 +62,129 @@ const firebaseConfig = {
     messagingSenderId: "400877033442",
     appId: "1:400877033442:web:db6fbdded6b099ac084bbb",
     measurementId: "G-WQCGW2VW7D"
-};
+  };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const docRef = doc(db, "loteria", "grupo");
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
-// ============ VARIABLES ============
-let data = { miembros: [], premio: 0, historial: [], adminKey: "" };
-let isAdmin = false;
+  const adminBtn = document.getElementById('adminBtn');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const miembrosTable = document.getElementById('miembrosTable');
+  const saldoTotalEl = document.getElementById('saldoTotal');
+  const premioTotalEl = document.getElementById('premioTotal');
+  const fechaSemanaEl = document.getElementById('fechaSemana');
+  const historialDiv = document.getElementById('historial');
+  const addMemberBtn = document.getElementById('addMemberBtn');
+  const playWeekBtn = document.getElementById('playWeekBtn');
+  const editPrizeBtn = document.getElementById('editPrizeBtn');
+  const downloadCSVBtn = document.getElementById('downloadCSV');
 
-// ============ LISTENER FIRESTORE ============
-onSnapshot(docRef, (snapshot) => {
-    if (snapshot.exists()) {
-        data = snapshot.data();
-        mostrar();
-        mostrarHistorial();
-    } else {
-        setDoc(docRef, data);
-    }
-});
+  let isAdmin = false;
+  let grupoData = {};
 
-async function guardar() {
-    await setDoc(docRef, data);
-}
+  const docRef = db.collection('loteria').doc('grupo');
 
-// ============ FUNCIONES DE NEGOCIO ============
-function agregarMiembro() {
-    if (!isAdmin) return;
-    const nombre = document.getElementById('nombre').value.trim();
-    const saldo = parseFloat(document.getElementById('saldo').value);
-    if (nombre && !isNaN(saldo)) {
-        data.miembros.push({ nombre, saldo });
-        registrarHistorial("Añadir miembro", `Nombre: ${nombre}, Saldo: ${saldo}€`);
-        guardar();
-    }
-    document.getElementById('nombre').value = '';
-    document.getElementById('saldo').value = '0';
-}
-
-function eliminarMiembro(i) {
-    if (!isAdmin) return;
-    const eliminado = data.miembros[i].nombre;
-    registrarHistorial("Eliminar miembro", `Nombre: ${eliminado}`);
-    data.miembros.splice(i, 1);
-    guardar();
-}
-
-function editarSaldo(i, valor) {
-    if (!isAdmin) return;
-    const anterior = data.miembros[i].saldo;
-    const nuevo = parseFloat(valor);
-    data.miembros[i].saldo = nuevo;
-    registrarHistorial("Editar saldo", `${data.miembros[i].nombre}: ${anterior}€ → ${nuevo}€`);
-    guardar();
-}
-
-function editarPremio(valor) {
-    if (!isAdmin) return;
-    const anterior = data.premio;
-    const nuevo = parseFloat(valor);
-    data.premio = nuevo;
-    registrarHistorial("Editar premio", `${anterior}€ → ${nuevo}€`);
-    guardar();
-}
-
-function jugarSemana() {
-    if (!isAdmin) return;
-    let saldoAntes = totalSaldo();
-    data.miembros = data.miembros.map(m => {
-        if (m.saldo >= 1) m.saldo -= 1;
-        return m;
+  function toggleAdminUI() {
+    document.querySelectorAll('.admin-only').forEach(el => {
+      el.classList.toggle('hidden', !isAdmin);
     });
-    let saldoDespues = totalSaldo();
-    registrarHistorial("Jugar semana", `Saldo total: ${saldoAntes}€ → ${saldoDespues}€ (-1€ a cada miembro)`);
-    guardar();
-}
+    adminBtn.classList.toggle('hidden', isAdmin);
+    logoutBtn.classList.toggle('hidden', !isAdmin);
+  }
 
-function registrarHistorial(accion, detalles) {
-    const fecha = new Date().toLocaleString('es-ES');
-    data.historial.unshift({ fecha, accion, detalles });
-}
-
-// ============ FUNCIONES UI ============
-function mostrar() {
-    const tabla = document.getElementById('tabla');
-    tabla.innerHTML = '';
+  // ✅ Actualiza interfaz
+  function renderUI() {
+    miembrosTable.innerHTML = '';
     let total = 0;
-    data.miembros.forEach((m, i) => {
-        total += m.saldo;
-        tabla.innerHTML += `
-            <tr>
-                <td class="border p-2">${m.nombre}</td>
-                <td class="border p-2">
-                    ${isAdmin
-                        ? `<input type="number" value="${m.saldo}" onchange="editarSaldo(${i}, this.value)" class="border rounded p-1 w-20 text-center">`
-                        : `${m.saldo.toFixed(2)}`
-                    }
-                </td>
-                <td class="border p-2">
-                    ${isAdmin ? `<button onclick="eliminarMiembro(${i})" class="bg-red-400 text-white px-2 py-1 rounded">Eliminar</button>` : ''}
-                </td>
-            </tr>`;
+    grupoData.miembros.forEach((m, index) => {
+      total += m.saldo;
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="border px-2 py-1">${m.nombre}</td>
+        <td class="border px-2 py-1">${m.saldo.toFixed(2)}</td>
+        <td class="border px-2 py-1 admin-only ${isAdmin ? '' : 'hidden'}">
+          <button class="bg-red-500 text-white px-2 rounded" onclick="deleteMember(${index})">X</button>
+        </td>
+      `;
+      miembrosTable.appendChild(row);
     });
-    document.getElementById('saldoTotal').textContent = total.toFixed(2);
-    document.getElementById('premio').value = data.premio;
-    document.getElementById('adminBadge').style.display = isAdmin ? 'inline' : 'none';
-}
+    saldoTotalEl.textContent = total.toFixed(2) + '€';
+    premioTotalEl.textContent = grupoData.premio.toFixed(2) + '€';
+    fechaSemanaEl.textContent = new Date().toLocaleDateString('es-ES');
+    historialDiv.innerHTML = grupoData.historial.slice().reverse().map(item => `<p>${item}</p>`).join('');
+  }
 
-function mostrarHistorial() {
-    const lista = document.getElementById('historial');
-    lista.innerHTML = '';
-    data.historial.forEach(item => {
-        lista.innerHTML += `
-            <li class="border-b py-1 text-sm">
-                <strong>${item.fecha}</strong> - ${item.accion}<br>
-                <span class="text-gray-600">${item.detalles}</span>
-            </li>`;
-    });
-}
-
-function totalSaldo() {
-    return data.miembros.reduce((sum, m) => sum + m.saldo, 0).toFixed(2);
-}
-
-// ============ ADMIN LOGIN ============
-window.loginAdmin = async function() {
-    const clave = prompt("Introduce la clave de administrador:");
-    if (clave === data.adminKey) {
-        isAdmin = true;
-        mostrar();
-    } else {
-        alert("Clave incorrecta");
+  // ✅ Escuchar cambios en Firestore
+  docRef.onSnapshot(doc => {
+    if (doc.exists) {
+      grupoData = doc.data();
+      renderUI();
     }
-}
+  });
 
-window.logoutAdmin = function() {
+  // ✅ Entrar como admin
+  adminBtn.addEventListener('click', async () => {
+    const pass = prompt('Introduce la clave de admin:');
+    if (!pass) return;
+    const docSnap = await docRef.get();
+    if (docSnap.exists && docSnap.data().adminKey === pass) {
+      isAdmin = true;
+      toggleAdminUI();
+    } else {
+      alert('Clave incorrecta');
+    }
+  });
+
+  logoutBtn.addEventListener('click', () => {
     isAdmin = false;
-    mostrar();
-}
+    toggleAdminUI();
+  });
 
-// ============ CSV EXPORT ============
-window.exportarCSV = function() {
-    let csv = "Fecha,Acción,Detalles\n";
-    data.historial.forEach(item => {
-        csv += `"${item.fecha}","${item.accion}","${item.detalles}"\n`;
-    });
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // ✅ Añadir miembro
+  addMemberBtn.addEventListener('click', async () => {
+    const nombre = prompt('Nombre del miembro:');
+    const saldo = parseFloat(prompt('Saldo inicial (€):'));
+    if (!nombre || isNaN(saldo)) return;
+    grupoData.miembros.push({ nombre, saldo });
+    grupoData.historial.push(`${new Date().toLocaleString()} - Añadido miembro: ${nombre} con saldo ${saldo}€`);
+    await docRef.update(grupoData);
+  });
+
+  // ✅ Eliminar miembro
+  window.deleteMember = async (index) => {
+    const eliminado = grupoData.miembros[index];
+    grupoData.miembros.splice(index, 1);
+    grupoData.historial.push(`${new Date().toLocaleString()} - Eliminado miembro: ${eliminado.nombre}`);
+    await docRef.update(grupoData);
+  };
+
+  // ✅ Jugar semana
+  playWeekBtn.addEventListener('click', async () => {
+    grupoData.miembros.forEach(m => m.saldo -= 1);
+    grupoData.historial.push(`${new Date().toLocaleString()} - Semana jugada (-1€ a todos)`);
+    await docRef.update(grupoData);
+  });
+
+  // ✅ Editar premio
+  editPrizeBtn.addEventListener('click', async () => {
+    const nuevoPremio = parseFloat(prompt('Nuevo premio (€):'));
+    if (isNaN(nuevoPremio)) return;
+    grupoData.historial.push(`${new Date().toLocaleString()} - Premio cambiado: ${grupoData.premio}€ → ${nuevoPremio}€`);
+    grupoData.premio = nuevoPremio;
+    await docRef.update(grupoData);
+  });
+
+  // ✅ Descargar historial en CSV
+  downloadCSVBtn.addEventListener('click', () => {
+    const csv = grupoData.historial.map(line => `"${line}"`).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "historial_loteria.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-// Exponer funciones a ventana
-window.agregarMiembro = agregarMiembro;
-window.eliminarMiembro = eliminarMiembro;
-window.editarSaldo = editarSaldo;
-window.editarPremio = editarPremio;
-window.jugarSemana = jugarSemana;
-
-</script>
-</head>
-<body class="bg-gray-100 text-gray-800 min-h-screen">
-<div class="max-w-5xl mx-auto p-6">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold">🎰 Lotería del Grupo <span id="adminBadge" class="text-sm bg-yellow-400 px-2 py-1 rounded hidden">Admin</span></h1>
-        <div>
-            <button onclick="loginAdmin()" class="bg-blue-500 text-white px-3 py-1 rounded">Entrar como Admin</button>
-            <button onclick="logoutAdmin()" class="bg-gray-400 text-white px-3 py-1 rounded">Salir</button>
-        </div>
-    </div>
-
-    <div class="bg-white shadow rounded-lg p-4 mb-6">
-        <p class="text-lg">📅 Hoy es: <span id="fecha"></span></p>
-        <p class="text-lg mt-2">💰 Total quemable: <span id="saldoTotal" class="font-bold text-green-600">0</span> €</p>
-        <p class="text-lg mt-2">🏆 La jubilación: 
-            <input type="number" id="premio" class="border rounded p-1 w-24 text-center" onchange="editarPremio(this.value)" ${isAdmin ? '' : 'disabled'}> €
-        </p>
-    </div>
-
-    <div id="adminControls" class="${isAdmin ? '' : 'hidden'}">
-        <div class="bg-white shadow rounded-lg p-4 mb-4">
-            <h2 class="text-xl font-semibold mb-2">➕ Añadir Miembro</h2>
-            <div class="flex gap-2">
-                <input type="text" id="nombre" placeholder="Nombre" class="border rounded p-2 w-1/2">
-                <input type="number" id="saldo" placeholder="Saldo (€)" class="border rounded p-2 w-1/3" value="0">
-                <button onclick="agregarMiembro()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Añadir</button>
-            </div>
-        </div>
-
-        <div class="mt-6 flex flex-wrap gap-2 justify-center">
-            <button onclick="jugarSemana()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Jugar Semana</button>
-        </div>
-    </div>
-
-    <div class="bg-white shadow rounded-lg p-4 mt-6">
-        <h2 class="text-xl font-semibold mb-4">👥 Miembros</h2>
-        <table class="w-full text-center border-collapse">
-            <thead>
-                <tr class="bg-gray-200">
-                    <th class="border p-2">Nombre</th>
-                    <th class="border p-2">Saldo (€)</th>
-                    <th class="border p-2">Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tabla"></tbody>
-        </table>
-    </div>
-
-    <div class="bg-white shadow rounded-lg p-4 mt-6">
-        <h2 class="text-xl font-semibold mb-4">📜 Historial</h2>
-        <div class="max-h-64 overflow-y-auto border p-2 rounded bg-gray-50">
-            <ul id="historial" class="list-disc pl-4"></ul>
-        </div>
-        <button onclick="exportarCSV()" class="mt-3 bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600">Descargar CSV</button>
-    </div>
-</div>
-
-<script>
-document.getElementById('fecha').textContent = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'historial.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 </script>
 </body>
 </html>
