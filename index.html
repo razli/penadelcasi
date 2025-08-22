@@ -151,14 +151,25 @@
     toggleAdminUI();
   });
 
-  addMemberBtn.addEventListener('click', async () => {
-    const nombre = prompt('Nombre del miembro:');
-    const saldo = parseFloat(prompt('Saldo inicial (€):'));
-    if (!nombre || isNaN(saldo)) return;
-    grupoData.miembros.push({ nombre, saldo });
-    grupoData.historial.push(`${new Date().toLocaleString()} - Añadido: ${nombre} (${saldo}€)`);
-    await updateDoc(docRef, grupoData);
+  // Añadir miembro
+addMemberBtn.addEventListener('click', async () => {
+  const nombre = prompt('Nombre del miembro:');
+  const saldo = parseFloat(prompt('Saldo inicial (€):'));
+  if (!nombre || isNaN(saldo)) return;
+
+  grupoData.miembros = [...grupoData.miembros, { nombre, saldo }];
+  grupoData.historial = [
+    `${new Date().toLocaleString()} - Añadido: ${nombre} (${saldo}€)`,
+    ...grupoData.historial
+  ];
+
+  await updateDoc(docRef, {
+    miembros: grupoData.miembros,
+    historial: grupoData.historial,
   });
+});
+
+  
 
   window.deleteMember = async (index) => {
     const eliminado = grupoData.miembros[index];
