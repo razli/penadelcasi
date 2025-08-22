@@ -62,6 +62,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js";
   import { getFirestore, doc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js";
 
+  // Configuración Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyDXejcJRXVXy4sJhnMKTIPaBhDHAWVUVkc",
     authDomain: "penadelcasi.firebaseapp.com",
@@ -76,6 +77,7 @@
   const db = getFirestore(app);
   const docRef = doc(db, 'loteria', 'grupo');
 
+  // Elementos DOM
   const adminBtn = document.getElementById('adminBtn');
   const logoutBtn = document.getElementById('logoutBtn');
   const miembrosTable = document.getElementById('miembrosTable');
@@ -92,9 +94,7 @@
   let grupoData = {};
 
   function toggleAdminUI() {
-    document.querySelectorAll('.admin-only').forEach(el => {
-      el.classList.toggle('hidden', !isAdmin);
-    });
+    document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin));
     adminBtn.classList.toggle('hidden', isAdmin);
     logoutBtn.classList.toggle('hidden', !isAdmin);
   }
@@ -103,14 +103,15 @@
     miembrosTable.innerHTML = '';
     grupoData.miembros = grupoData.miembros || [];
     grupoData.historial = grupoData.historial || [];
+    grupoData.premio = grupoData.premio || 0;
 
     let total = 0;
     grupoData.miembros.forEach((m, index) => {
-      total += m.saldo;
+      total += m.saldo ?? 0;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="border px-2 py-1">${m.nombre}</td>
-        <td class="border px-2 py-1">${m.saldo.toFixed(2)}</td>
+        <td class="border px-2 py-1">${(m.saldo ?? 0).toFixed(2)}</td>
         <td class="border px-2 py-1 admin-only ${isAdmin ? '' : 'hidden'}">
           <button class="bg-red-500 text-white px-2 rounded" onclick="deleteMember(${index})">X</button>
         </td>`;
@@ -118,7 +119,7 @@
     });
 
     saldoTotalEl.textContent = total.toFixed(2) + '€';
-    premioTotalEl.textContent = (grupoData.premio || 0).toFixed(2) + '€';
+    premioTotalEl.textContent = grupoData.premio.toFixed(2) + '€';
     fechaSemanaEl.textContent = new Date().toLocaleDateString('es-ES');
     historialDiv.innerHTML = grupoData.historial.slice().reverse().map(h => `<p>${h}</p>`).join('');
   }
@@ -127,6 +128,9 @@
   onSnapshot(docRef, (snap) => {
     if (snap.exists()) {
       grupoData = snap.data();
+      grupoData.miembros = grupoData.miembros || [];
+      grupoData.historial = grupoData.historial || [];
+      grupoData.premio = grupoData.premio || 0;
       renderUI();
     }
   });
@@ -154,33 +158,48 @@
     const nombre = prompt('Nombre del miembro:');
     const saldo = parseFloat(prompt('Saldo inicial (€):'));
     if (!nombre || isNaN(saldo)) return;
+
     grupoData.miembros = [...grupoData.miembros, { nombre, saldo }];
     grupoData.historial = [`${new Date().toLocaleString()} - Añadido: ${nombre} (${saldo}€)`, ...grupoData.historial];
-    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
+
+    await updateDoc(docRef, {
+      miembros: [...grupoData.miembros],
+      historial: [...grupoData.historial]
+    });
   });
 
   // Eliminar miembro
   window.deleteMember = async (index) => {
     const eliminado = grupoData.miembros[index];
+    if (!eliminado) return;
     grupoData.miembros = grupoData.miembros.filter((_, i) => i !== index);
     grupoData.historial = [`${new Date().toLocaleString()} - Eliminado: ${eliminado.nombre}`, ...grupoData.historial];
-    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
+    await updateDoc(docRef, {
+      miembros: [...grupoData.miembros],
+      historial: [...grupoData.historial]
+    });
   };
 
   // Jugar semana
   playWeekBtn.addEventListener('click', async () => {
-    grupoData.miembros = grupoData.miembros.map(m => ({ ...m, saldo: m.saldo - 1 }));
+    grupoData.miembros = grupoData.miembros.map(m => ({ ...m, saldo: (m.saldo ?? 0) - 1 }));
     grupoData.historial = [`${new Date().toLocaleString()} - Semana jugada (-1€ a cada uno)`, ...grupoData.historial];
-    await updateDoc(docRef, { miembros: grupoData.miembros, historial: grupoData.historial });
+    await updateDoc(docRef, {
+      miembros: [...grupoData.miembros],
+      historial: [...grupoData.historial]
+    });
   });
 
   // Editar premio
   editPrizeBtn.addEventListener('click', async () => {
     const nuevo = parseFloat(prompt('Nuevo premio (€):'));
     if (isNaN(nuevo)) return;
-    grupoData.historial = [`${new Date().toLocaleString()} - Premio: ${grupoData.premio || 0}€ → ${nuevo}€`, ...grupoData.historial];
+    grupoData.historial = [`${new Date().toLocaleString()} - Premio: ${grupoData.premio}€ → ${nuevo}€`, ...grupoData.historial];
     grupoData.premio = nuevo;
-    await updateDoc(docRef, { premio: grupoData.premio, historial: grupoData.historial });
+    await updateDoc(docRef, {
+      premio: grupoData.premio,
+      historial: [...grupoData.historial]
+    });
   });
 
   // Exportar CSV
@@ -194,7 +213,6 @@
     a.click();
     URL.revokeObjectURL(url);
   });
-
 </script>
 </body>
 </html>
